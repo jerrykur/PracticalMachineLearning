@@ -88,8 +88,8 @@ require(parallel)
 require(doParallel)
 
 # set this to TRUE to reuse the model from the last run.
-# This will greatly (ie removes 98% of the time) speed the run.
-USE_PREVIOUS_MODEL &lt;- TRUE</code></pre>
+# This will greatly improves (i.e. removes 98% of the time) the speed the run.
+USE_PREVIOUS_MODEL &lt;- FALSE</code></pre>
 </div>
 <div id="load-data-files" class="section level2">
 <h2>Load data files</h2>
@@ -150,12 +150,12 @@ preProc &lt;- preProcess(probePred, method=c(&quot;center&quot;, &quot;scale&quo
 tempCentScale &lt;- predict(preProc, probePred)
 probeCentScale &lt;- data.table(data.frame(classe = Probe[, classe], tempCentScale))</code></pre>
 </div>
-<div id="check-for-unique-predictors" class="section level2">
-<h2>Check for unique predictors</h2>
-<p>Check to see if there are predictors with near 0 variance indicating they are un-informative and will likely break the tree prediction or at least skew the mode. If we find any such predictors we will need to remove them before proceeding See <a href="http://www.r-bloggers.com/near-zero-variance-predictors-should-we-remove-them/" class="uri">http://www.r-bloggers.com/near-zero-variance-predictors-should-we-remove-them/</a></p>
+<div id="check-for-constant-predictors" class="section level2">
+<h2>Check for constant predictors</h2>
+<p>Check to see if there are predictors with near 0 variance (constant) indicating they are un-informative. We remove them since they would likely break the tree prediction or at least skew the model. A quick review of the data shows that we should not have any of these. If we do I want to know about it and see if I made an error in my understanding of the data. See <a href="http://www.r-bloggers.com/near-zero-variance-predictors-should-we-remove-them/" class="uri">http://www.r-bloggers.com/near-zero-variance-predictors-should-we-remove-them/</a></p>
 <pre class="r"><code>nzvPredictors &lt;- nearZeroVar(trainCentScale, saveMetrics=TRUE)
 if (any(nzvPredictors$nzv)) {
-  message(paste(&quot;ERROR - near zero values in Predictors.  Check &quot;, nzvPredictors$nzv)) 
+  message(paste(&quot;ERROR - near zero values in Predictors.  Check these &quot;, nzvPredictors$nzv)) 
 } else  {
   message(&quot;No near 0 variance predictors.  Good to go!!&quot;)
 }</code></pre>
@@ -286,7 +286,10 @@ pml_write_files = function(x){
   }
 }
 pml_write_files(testHat)</code></pre>
-<p>These answer files were accepted by the Coursera grader and 20 of 20 answers were correct.</p>
+</div>
+<div id="answer-file-correctness" class="section level3">
+<h3>Answer file correctness</h3>
+<p>The created answer files were accepted by the Coursera grader. 20 of 20 answers were correct.</p>
 </div>
 </div>
 </div>
