@@ -70,7 +70,7 @@ img {
 
 <div id="abstract" class="section level1">
 <h1>Abstract</h1>
-<p>In this projects we the performance of 5 accelerometers and resultant class as data to create a model for predicting class. We used a Random Forest to calculate the model based on a 60% subset of the training data. This model was validate by using the remaining 40% of the training data as a Probe set. The model showed good accuracy, &gt;98%. When the model was used to predict class for the 20 values in the test set it was correct 100% of the time.</p>
+<p>In this projects we the performance of 5 accelerometers and resultant class as data to create a model for predicting class. We used a Random Forest to calculate the model based on a 60% subset of the training data. This model was validate by using the remaining 40% of the training data as a Validation set. The model showed good accuracy, &gt;98%. When the model was used to predict class for the 20 values in the test set it was correct 100% of the time.</p>
 </div>
 <div id="background" class="section level1">
 <h1>Background</h1>
@@ -124,15 +124,15 @@ filteredTraining &lt;- origTraining[, colsToUse, with=FALSE]
 filteredTraining &lt;- filteredTraining[, classe := factor(filteredTraining[, classe])]</code></pre>
 </div>
 </div>
-<div id="split-filtered-training-6040-into-trainingprobe-datasets" class="section level2">
-<h2>Split Filtered Training 60/40 into Training/Probe datasets</h2>
-<p>From the entire filtered training data we split the data into a training and a probe datasets We will use the training dataset to train our model and the Probe dataset to validate the model.</p>
+<div id="split-filtered-training-6040-into-trainingvalidation-datasets" class="section level2">
+<h2>Split Filtered Training 60/40 into Training/Validation datasets</h2>
+<p>From the entire filtered training data we split the data into a training and a validation datasets We will use the training dataset to train our model and the Validation dataset to validate the model.</p>
 <pre class="r"><code># start date as seed.  Note the seed can cause small shift submitted answers
 set.seed(160615)   
-# partition the test data in to test and probe sets
-inTrain &lt;- createDataPartition(filteredTraining$classe, p=0.6, list=FALSE)
+# partition the test data in to test and validation sets
+inTrain &lt;- createDataPartition(filteredTraining$classe, p=0.60, list=FALSE)
 Train &lt;- filteredTraining[inTrain,]
-Probe &lt;- filteredTraining[-inTrain,]</code></pre>
+Validation &lt;- filteredTraining[-inTrain,]</code></pre>
 </div>
 <div id="pre-process-training-dataset" class="section level2">
 <h2>Pre-process training dataset</h2>
@@ -142,13 +142,13 @@ preProc &lt;- preProcess(trainPred, method=c(&quot;center&quot;, &quot;scale&quo
 tempCentScale &lt;- predict(preProc, trainPred)
 trainCentScale &lt;- data.table(data.frame(classe = Train[, classe], tempCentScale))</code></pre>
 </div>
-<div id="pre-process-probe-dataset" class="section level2">
-<h2>Pre-process Probe dataset</h2>
-<pre class="r"><code>probePred &lt;- Probe[, predictors, with=FALSE]
+<div id="pre-process-validation-dataset" class="section level2">
+<h2>Pre-process Validation dataset</h2>
+<pre class="r"><code>validationPred &lt;- Validation[, predictors, with=FALSE]
 # center and scale the data
-preProc &lt;- preProcess(probePred, method=c(&quot;center&quot;, &quot;scale&quot;))
-tempCentScale &lt;- predict(preProc, probePred)
-probeCentScale &lt;- data.table(data.frame(classe = Probe[, classe], tempCentScale))</code></pre>
+preProc &lt;- preProcess(validationPred, method=c(&quot;center&quot;, &quot;scale&quot;))
+tempCentScale &lt;- predict(preProc, validationPred)
+validationCentScale &lt;- data.table(data.frame(classe = Validation[, classe], tempCentScale))</code></pre>
 </div>
 <div id="check-for-constant-predictors" class="section level2">
 <h2>Check for constant predictors</h2>
@@ -225,12 +225,12 @@ confusionMatrix(hatTrain, trainCentScale[, classe])</code></pre>
 <p>As the data shows we do indeed have high agreement between training data and the produced model. Also note that “Reference” shows the classe of the data has the following prevalence relation for number of each classe A &gt; B &gt; E &gt; C &gt; D. However the counts are is relatively balanced so use of a random forest model should work.</p>
 <p>The need for a balanced distribution was pointed out in the answer to this question, <a href="http://stat.stackexchange.com/questions/30691/how-to-interpret-oob-and-confusion-matrix-for-random-forest" class="uri">http://stat.stackexchange.com/questions/30691/how-to-interpret-oob-and-confusion-matrix-for-random-forest</a>. The 3rd answer begins with &quot; Your set is sharply unbalanced – RF usually fails in this scenario (i.e. predicts well only the bigger class)&quot;</p>
 </div>
-<div id="evaluate-the-model-on-probe-set" class="section level2">
-<h2>Evaluate the model on probe set</h2>
-<p>Let’s validate the model against our 40% of the training data we used to create a probe set. We should see good accuracy, and and similar prevelence and balance amoung the classe entries.</p>
-<pre class="r"><code>hatProbe &lt;- predict(trainingModel, probeCentScale)
-cmProbe &lt;- confusionMatrix(hatProbe, probeCentScale[, classe])
-cmProbe</code></pre>
+<div id="evaluate-the-model-on-validation-set" class="section level2">
+<h2>Evaluate the model on Validation set</h2>
+<p>Let’s validate the model against our 40% of the training data we used to create a validation set. We should see good accuracy, and and similar prevelence and balance amoung the classe entries.</p>
+<pre class="r"><code>hatValidation &lt;- predict(trainingModel, validationCentScale)
+cmValidation &lt;- confusionMatrix(hatValidation, validationCentScale[, classe])
+cmValidation</code></pre>
 <pre><code>## Confusion Matrix and Statistics
 ## 
 ##           Reference

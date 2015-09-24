@@ -8,7 +8,7 @@ output: html_document
 
 In this projects we the performance of 5 accelerometers and resultant class as data to create a model for predicting class.
 We used a Random Forest to calculate the model based on a 60% subset of the training data.  This model was validate by
-using the remaining 40% of the training data as a Probe set.  The model showed good accuracy, >98%.  When the model
+using the remaining 40% of the training data as a Validation set.  The model showed good accuracy, >98%.  When the model
 was used to predict class for the 20 values in the test set it was correct 100% of the time.  
 
 # Background
@@ -77,19 +77,19 @@ filteredTraining <- origTraining[, colsToUse, with=FALSE]
 filteredTraining <- filteredTraining[, classe := factor(filteredTraining[, classe])]
 ```
 
-##  Split Filtered Training 60/40 into Training/Probe datasets
+##  Split Filtered Training 60/40 into Training/Validation datasets
 
-From the entire filtered training data we split the data into a training and a probe datasets
-We will use the training dataset to train our model and the Probe dataset to validate the
+From the entire filtered training data we split the data into a training and a validation datasets
+We will use the training dataset to train our model and the Validation dataset to validate the
 model.
 
 ```{r split into training and test datasets}
 # start date as seed.  Note the seed can cause small shift submitted answers
 set.seed(160615)   
-# partition the test data in to test and probe sets
-inTrain <- createDataPartition(filteredTraining$classe, p=0.6, list=FALSE)
+# partition the test data in to test and validation sets
+inTrain <- createDataPartition(filteredTraining$classe, p=0.60, list=FALSE)
 Train <- filteredTraining[inTrain,]
-Probe <- filteredTraining[-inTrain,]
+Validation <- filteredTraining[-inTrain,]
 ```
 
 ## Pre-process training dataset
@@ -101,13 +101,13 @@ tempCentScale <- predict(preProc, trainPred)
 trainCentScale <- data.table(data.frame(classe = Train[, classe], tempCentScale))
 ```
 
-## Pre-process Probe dataset
+## Pre-process Validation dataset
 ```{r preprocess test dataset}
-probePred <- Probe[, predictors, with=FALSE]
+validationPred <- Validation[, predictors, with=FALSE]
 # center and scale the data
-preProc <- preProcess(probePred, method=c("center", "scale"))
-tempCentScale <- predict(preProc, probePred)
-probeCentScale <- data.table(data.frame(classe = Probe[, classe], tempCentScale))
+preProc <- preProcess(validationPred, method=c("center", "scale"))
+tempCentScale <- predict(preProc, validationPred)
+validationCentScale <- data.table(data.frame(classe = Validation[, classe], tempCentScale))
 ```
 
 ## Check for constant predictors
@@ -176,17 +176,17 @@ of the data has the following prevalence relation for number of each classe A > 
 The need for a balanced distribution was pointed out in the answer to this question, http://stat.stackexchange.com/questions/30691/how-to-interpret-oob-and-confusion-matrix-for-random-forest.  The 3rd answer
 begins with " Your set is sharply unbalanced -- RF usually fails in this scenario (i.e. predicts well only the bigger class)"
 
-## Evaluate the model on probe set
+## Evaluate the model on Validation set
 
-Let's validate the model against our 40% of the training data we used to create a probe set.
+Let's validate the model against our 40% of the training data we used to create a validation set.
 We should see good accuracy, and and similar prevelence and balance amoung the classe entries.
 
-```{r evaluate model vs probe set }
-hatProbe <- predict(trainingModel, probeCentScale)
-cmProbe <- confusionMatrix(hatProbe, probeCentScale[, classe])
-cmProbe
+```{r evaluate model vs validation set }
+hatValidation <- predict(trainingModel, validationCentScale)
+cmValidation <- confusionMatrix(hatValidation, validationCentScale[, classe])
+cmValidation
 ```
-We get an accuracy of `r cmProbe$overall['Accuracy']`.  Also, we see the the prevalence relationship
+We get an accuracy of `r cmValidation$overall['Accuracy']`.  Also, we see the the prevalence relationship
 is still classe  A > B > E > C >D and the counts are relatively balanced, so this accuracy is likely real.
 Checking the Sensitivity (True Postive Rate) and Specificity (True Negative Rate) for the classes we see these 
 values are high so this helps confirm that the model does indeed correctly predict classe. 
