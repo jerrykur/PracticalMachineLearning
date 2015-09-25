@@ -49,8 +49,8 @@ origTest <- fread(url, na.strings = c("NA","#DIV/0!", ""))
 
 ## Data Cleaning and Filtering
 
-We need to clean and filter data before we can use it.  As pointed out in the lectures this a 
-critical step in the processing.
+We need to clean and filter data before we can use it.  As pointed out in the lectures this one of the  
+critical steps in the processing.
 
 ### Determine the predictors to use
 
@@ -77,11 +77,13 @@ filteredTraining <- origTraining[, colsToUse, with=FALSE]
 filteredTraining <- filteredTraining[, classe := factor(filteredTraining[, classe])]
 ```
 
-##  Split Filtered Training 60/40 into Training/Validation datasets
+##  Split Filtered Training into Training/Validation datasets
 
 From the entire filtered training data we split the data into a training and a validation datasets
 We will use the training dataset to train our model and the Validation dataset to validate the
 model.
+
+60/40 ratio was determined by a reading on stackexchange.com and other site.
 
 ```{r split into training and test datasets}
 # start date as seed.  Note the seed can cause small shift submitted answers
@@ -130,7 +132,7 @@ if (any(nzvPredictors$nzv)) {
 ## Train the model
 
 Now that the data has been preprocessed we can train the model.  We are using the Random Forest model since the
-values of classe are discrete, and as pointed out in the lectures, the Random Forest accuracy is high. 
+values of classe are discrete, and as pointed out in the lectures, the Random Forest accuracy is high. We further try to improve the accuracy by use a 10 fold cross validation.  
 
 Note: Also pointed out in the lectures was that the Random Forest can be a bit slow.  To combat this we use parallel clustering to take advantage of multiple processing cores available on many CPUs.  Even with this, it takes 24 minutes on a i7-4970K system with 16 GB of memory to train the model.
 So there is also a facility to reuse the previously generated model.  This is useful while changing the report format.
@@ -147,8 +149,10 @@ if ( !USE_PREVIOUS_MODEL ) {
   cl <- makeCluster(detectCores() - 1)
   registerDoParallel(cl)
   
-  # Train the model
-  system.time( trainingModel  <- train(classe ~ ., data=trainCentScale, method="rf"))
+  
+  # Train the model, cross-validate with 
+   trainingModel  <- train(classe ~ ., data=trainCentScale,
+              trControl=trainControl(method="cv",number=10), method="rf")
   # Terminate parallel processing
   stopCluster(cl)
   # Save the training model to disk
@@ -158,7 +162,13 @@ if ( !USE_PREVIOUS_MODEL ) {
   load(trainingFile)
 }
 
+# see the results of k-fold cross-validation in the training model
+print (trainingModel)
 ```
+
+### Tree accuracy
+
+We see that with k-fold cross-validation we achieve an accuracy of 0.99 or 99%.  This accuracy was achived when the number of variables per level (mtry) in the model was 27.
 
 
 ## Evaluate the model on training set
@@ -168,7 +178,8 @@ since this the data we trained the model against. If we do not have a high agree
 not work with this data or we need more pre-processing.
 ```{r evaluate mode vs training set }
 hatTrain <- predict(trainingModel, trainCentScale)
-confusionMatrix(hatTrain, trainCentScale[, classe])
+cmTrain <- confusionMatrix(hatTrain, trainCentScale[, classe])
+cmTrain
 ```
 As the data shows we do indeed have high agreement between training data and the produced model.  Also note that "Reference" shows the classe
 of the data has the following prevalence relation for number of each classe A > B > E > C > D.  However the counts are is relatively balanced so use of a random forest model should work.
@@ -193,7 +204,7 @@ values are high so this helps confirm that the model does indeed correctly predi
 
 ## OOB errors
 As a cross check lets take a look at the model's OOB estimate of error for our classe values shown in Figure 1.  We see 
-that the OOB error rate is low, 0.89%, increasing our confidence in the model.
+that the OOB error rate is low, 0.84%, increasing our confidence in the model.
 
 ## Predict with test data 
 
@@ -219,9 +230,9 @@ pml_write_files = function(x){
 pml_write_files(testHat)
 ```
 
-### Answer file correctness
+### Answer file correctness (ie. Does it work?)
 
-The created answer files were accepted by the Coursera grader. 20 of 20 answers were correct.
+The created answer files were accepted by the Coursera grader. 20 of 20 answers were correct!
 
 
 

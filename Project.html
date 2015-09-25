@@ -104,7 +104,7 @@ origTest &lt;- fread(url, na.strings = c(&quot;NA&quot;,&quot;#DIV/0!&quot;, &qu
 </div>
 <div id="data-cleaning-and-filtering" class="section level2">
 <h2>Data Cleaning and Filtering</h2>
-<p>We need to clean and filter data before we can use it. As pointed out in the lectures this a critical step in the processing.</p>
+<p>We need to clean and filter data before we can use it. As pointed out in the lectures this one of the<br />critical steps in the processing.</p>
 <div id="determine-the-predictors-to-use" class="section level3">
 <h3>Determine the predictors to use</h3>
 <p>We want to filter out data to only the parsimonious predictors that matter. As specified in the instructions, we only want “belt, arm, forearm, or dumbell” columns. And after several tests we determine that we should use only the columns with data. That is, no NAs.</p>
@@ -124,9 +124,10 @@ filteredTraining &lt;- origTraining[, colsToUse, with=FALSE]
 filteredTraining &lt;- filteredTraining[, classe := factor(filteredTraining[, classe])]</code></pre>
 </div>
 </div>
-<div id="split-filtered-training-6040-into-trainingvalidation-datasets" class="section level2">
-<h2>Split Filtered Training 60/40 into Training/Validation datasets</h2>
+<div id="split-filtered-training-into-trainingvalidation-datasets" class="section level2">
+<h2>Split Filtered Training into Training/Validation datasets</h2>
 <p>From the entire filtered training data we split the data into a training and a validation datasets We will use the training dataset to train our model and the Validation dataset to validate the model.</p>
+<p>60/40 ratio was determined by a reading on stackexchange.com and other site.</p>
 <pre class="r"><code># start date as seed.  Note the seed can cause small shift submitted answers
 set.seed(160615)   
 # partition the test data in to test and validation sets
@@ -163,7 +164,7 @@ if (any(nzvPredictors$nzv)) {
 </div>
 <div id="train-the-model" class="section level2">
 <h2>Train the model</h2>
-<p>Now that the data has been preprocessed we can train the model. We are using the Random Forest model since the values of classe are discrete, and as pointed out in the lectures, the Random Forest accuracy is high.</p>
+<p>Now that the data has been preprocessed we can train the model. We are using the Random Forest model since the values of classe are discrete, and as pointed out in the lectures, the Random Forest accuracy is high. We further try to improve the accuracy by use a 10 fold cross validation.</p>
 <p>Note: Also pointed out in the lectures was that the Random Forest can be a bit slow. To combat this we use parallel clustering to take advantage of multiple processing cores available on many CPUs. Even with this, it takes 24 minutes on a i7-4970K system with 16 GB of memory to train the model. So there is also a facility to reuse the previously generated model. This is useful while changing the report format.</p>
 <pre class="r"><code>trainingFile &lt;- &quot;trainingModel.Rdata&quot;
 if ( !USE_PREVIOUS_MODEL ) {
@@ -175,8 +176,10 @@ if ( !USE_PREVIOUS_MODEL ) {
   cl &lt;- makeCluster(detectCores() - 1)
   registerDoParallel(cl)
   
-  # Train the model
-  system.time( trainingModel  &lt;- train(classe ~ ., data=trainCentScale, method=&quot;rf&quot;))
+  
+  # Train the model, cross-validate with 
+   trainingModel  &lt;- train(classe ~ ., data=trainCentScale,
+              trControl=trainControl(method=&quot;cv&quot;,number=10), method=&quot;rf&quot;)
   # Terminate parallel processing
   stopCluster(cl)
   # Save the training model to disk
@@ -184,13 +187,39 @@ if ( !USE_PREVIOUS_MODEL ) {
 } else {
   #Restore training model from disk
   load(trainingFile)
-}</code></pre>
+}
+
+# see the results of k-fold cross-validation in the training model
+print (trainingModel)</code></pre>
+<pre><code>## Random Forest 
+## 
+## 11776 samples
+##    52 predictor
+##     5 classes: 'A', 'B', 'C', 'D', 'E' 
+## 
+## No pre-processing
+## Resampling: Cross-Validated (10 fold) 
+## Summary of sample sizes: 10598, 10600, 10599, 10600, 10598, 10598, ... 
+## Resampling results across tuning parameters:
+## 
+##   mtry  Accuracy   Kappa      Accuracy SD  Kappa SD   
+##    2    0.9900650  0.9874315  0.001918650  0.002426568
+##   27    0.9903195  0.9877539  0.002440231  0.003086851
+##   52    0.9828462  0.9782975  0.003416922  0.004324925
+## 
+## Accuracy was used to select the optimal model using  the largest value.
+## The final value used for the model was mtry = 27.</code></pre>
+<div id="tree-accuracy" class="section level3">
+<h3>Tree accuracy</h3>
+<p>We see that with k-fold cross-validation we achieve an accuracy of 0.99 or 99%. This accuracy was achived when the number of variables per level (mtry) in the model was 27.</p>
+</div>
 </div>
 <div id="evaluate-the-model-on-training-set" class="section level2">
 <h2>Evaluate the model on training set</h2>
 <p>Let’s take a look at how the model compares to the training set. Obviuosly we would expect high agreement since this the data we trained the model against. If we do not have a high agreement the Random Forest may not work with this data or we need more pre-processing.</p>
 <pre class="r"><code>hatTrain &lt;- predict(trainingModel, trainCentScale)
-confusionMatrix(hatTrain, trainCentScale[, classe])</code></pre>
+cmTrain &lt;- confusionMatrix(hatTrain, trainCentScale[, classe])
+cmTrain</code></pre>
 <pre><code>## Confusion Matrix and Statistics
 ## 
 ##           Reference
@@ -236,37 +265,37 @@ cmValidation</code></pre>
 ##           Reference
 ## Prediction    A    B    C    D    E
 ##          A 2227   21    0    0    0
-##          B    0 1473   13    1    2
-##          C    4   18 1337   28    4
-##          D    0    4   14 1257   10
-##          E    1    2    4    0 1426
+##          B    0 1471   19    2    1
+##          C    4   19 1332   31    3
+##          D    0    5   13 1253    9
+##          E    1    2    4    0 1429
 ## 
 ## Overall Statistics
 ##                                           
-##                Accuracy : 0.9839          
-##                  95% CI : (0.9809, 0.9866)
+##                Accuracy : 0.9829          
+##                  95% CI : (0.9798, 0.9857)
 ##     No Information Rate : 0.2845          
 ##     P-Value [Acc &gt; NIR] : &lt; 2.2e-16       
 ##                                           
-##                   Kappa : 0.9797          
+##                   Kappa : 0.9784          
 ##  Mcnemar's Test P-Value : NA              
 ## 
 ## Statistics by Class:
 ## 
 ##                      Class: A Class: B Class: C Class: D Class: E
-## Sensitivity            0.9978   0.9704   0.9773   0.9774   0.9889
-## Specificity            0.9963   0.9975   0.9917   0.9957   0.9989
-## Pos Pred Value         0.9907   0.9893   0.9612   0.9782   0.9951
-## Neg Pred Value         0.9991   0.9929   0.9952   0.9956   0.9975
+## Sensitivity            0.9978   0.9690   0.9737   0.9743   0.9910
+## Specificity            0.9963   0.9965   0.9912   0.9959   0.9989
+## Pos Pred Value         0.9907   0.9853   0.9590   0.9789   0.9951
+## Neg Pred Value         0.9991   0.9926   0.9944   0.9950   0.9980
 ## Prevalence             0.2845   0.1935   0.1744   0.1639   0.1838
-## Detection Rate         0.2838   0.1877   0.1704   0.1602   0.1817
-## Detection Prevalence   0.2865   0.1898   0.1773   0.1638   0.1826
-## Balanced Accuracy      0.9970   0.9839   0.9845   0.9866   0.9939</code></pre>
-<p>We get an accuracy of 0.9839409. Also, we see the the prevalence relationship is still classe A &gt; B &gt; E &gt; C &gt;D and the counts are relatively balanced, so this accuracy is likely real. Checking the Sensitivity (True Postive Rate) and Specificity (True Negative Rate) for the classes we see these values are high so this helps confirm that the model does indeed correctly predict classe.</p>
+## Detection Rate         0.2838   0.1875   0.1698   0.1597   0.1821
+## Detection Prevalence   0.2865   0.1903   0.1770   0.1631   0.1830
+## Balanced Accuracy      0.9970   0.9828   0.9824   0.9851   0.9949</code></pre>
+<p>We get an accuracy of 0.9829212. Also, we see the the prevalence relationship is still classe A &gt; B &gt; E &gt; C &gt;D and the counts are relatively balanced, so this accuracy is likely real. Checking the Sensitivity (True Postive Rate) and Specificity (True Negative Rate) for the classes we see these values are high so this helps confirm that the model does indeed correctly predict classe.</p>
 </div>
 <div id="oob-errors" class="section level2">
 <h2>OOB errors</h2>
-<p>As a cross check lets take a look at the model’s OOB estimate of error for our classe values shown in Figure 1. We see that the OOB error rate is low, 0.89%, increasing our confidence in the model.</p>
+<p>As a cross check lets take a look at the model’s OOB estimate of error for our classe values shown in Figure 1. We see that the OOB error rate is low, 0.84%, increasing our confidence in the model.</p>
 </div>
 <div id="predict-with-test-data" class="section level2">
 <h2>Predict with test data</h2>
@@ -287,9 +316,9 @@ pml_write_files = function(x){
 }
 pml_write_files(testHat)</code></pre>
 </div>
-<div id="answer-file-correctness" class="section level3">
-<h3>Answer file correctness</h3>
-<p>The created answer files were accepted by the Coursera grader. 20 of 20 answers were correct.</p>
+<div id="answer-file-correctness-ie.-does-it-work" class="section level3">
+<h3>Answer file correctness (ie. Does it work?)</h3>
+<p>The created answer files were accepted by the Coursera grader. 20 of 20 answers were correct!</p>
 </div>
 </div>
 </div>
@@ -306,14 +335,14 @@ pml_write_files(testHat)</code></pre>
 ##                      Number of trees: 500
 ## No. of variables tried at each split: 27
 ## 
-##         OOB estimate of  error rate: 0.89%
+##         OOB estimate of  error rate: 0.84%
 ## Confusion matrix:
 ##      A    B    C    D    E  class.error
 ## A 3345    2    1    0    0 0.0008960573
-## B   18 2250    9    2    0 0.0127248793
-## C    0   18 2027    9    0 0.0131450828
-## D    0    1   29 1898    2 0.0165803109
-## E    0    0    5    9 2151 0.0064665127</code></pre>
+## B   17 2255    5    2    0 0.0105309346
+## C    0   19 2029    6    0 0.0121713729
+## D    0    0   30 1897    3 0.0170984456
+## E    0    1    5    8 2151 0.0064665127</code></pre>
 </div>
 </div>
 </div>
