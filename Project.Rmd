@@ -6,10 +6,12 @@ output: html_document
 ---
 # Abstract
 
-In this projects we the performance of 5 accelerometers and resultant class as data to create a model for predicting class.
-We used a Random Forest to calculate the model based on a 60% subset of the training data.  This model was validate by
-using the remaining 40% of the training data as a Validation set.  The model showed good accuracy, >98%.  When the model
-was used to predict class for the 20 values in the test set it was correct 100% of the time.  
+In this project we create model which analyzes the performance of 5 accelerometers attached to test subjects performing exercises.  Using the performance data the model classifies how well the exercises were performed into 5 "classe" factor values. 
+
+To create the model we clean and filter the data to remove non relavant and partial
+data. A Random Forest, with K-folder (n=10) cross validation, is used to calculate the model based on a 60% subset of the training data. The produced model shows low OOB error rate of 0.98%. This model is further validate by using the remaining 40% of the training data as a Validation set. Against this Validation set the model showed good accuracy, >98%, in predicting the correct classe values. 
+
+Finally, the model is used to predict classe for the 20 items in the Test set.  For the test set the model correctly predicted the classe value 100% of the time.  
 
 # Background
 
@@ -71,7 +73,7 @@ Also, since classe has a discrete set of values we make the classe column a fact
 ```{r subset training columns }
 # use the classe + the predictor columns as a filter
 colsToUse <- c("classe", predictors)
-# Create filtered training set containing only the columns from the training file we chose above
+# Create filtered training subset containing only the columns from the training file we chose above
 filteredTraining <- origTraining[, colsToUse, with=FALSE]
 # make classe a factor
 filteredTraining <- filteredTraining[, classe := factor(filteredTraining[, classe])]
@@ -83,10 +85,10 @@ From the entire filtered training data we split the data into a training and a v
 We will use the training dataset to train our model and the Validation dataset to validate the
 model.
 
-60/40 ratio was determined by a reading on stackexchange.com and other site.
+60/40 ratio was determined by a reading posting on stackexchange.com and other site.
 
 ```{r split into training and test datasets}
-# start date as seed.  Note the seed can cause small shift submitted answers
+# set seed.  Note: the seed can cause small shifts in submitted answers
 set.seed(160615)   
 # partition the test data in to test and validation sets
 inTrain <- createDataPartition(filteredTraining$classe, p=0.60, list=FALSE)
@@ -97,7 +99,7 @@ Validation <- filteredTraining[-inTrain,]
 ## Pre-process training dataset
 ```{r Preprocess training dataset}
 trainPred <- Train[, predictors, with=FALSE]
-# center and scale the data
+# center and scale the data.  I am not sure if this required for Random Forest
 preProc <- preProcess(trainPred, method=c("center", "scale"))
 tempCentScale <- predict(preProc, trainPred)
 trainCentScale <- data.table(data.frame(classe = Train[, classe], tempCentScale))
@@ -115,10 +117,8 @@ validationCentScale <- data.table(data.frame(classe = Validation[, classe], temp
 ## Check for constant predictors
 
 Check to see if there are predictors with near 0 variance (constant) indicating 
-they are un-informative.  We remove them since they would likely break the tree prediction or at least skew the model.
-A quick review of the data shows that we should not have any of these.  If we do I want to know
-about it and see if I made an error in my understanding of the data. 
-See http://www.r-bloggers.com/near-zero-variance-predictors-should-we-remove-them/
+they are un-informative.  We remove them since they would likely break the tree prediction or at least skew the model.   A quick review of the data shows that we should not have any of these.  If we do I want to know about it and see if I made an error in my understanding of the data. 
+See http://www.r-bloggers.com/near-zero-variance-predictors-should-we-remove-them/ for more information.
 ```{r check near 0 variance}
 nzvPredictors <- nearZeroVar(trainCentScale, saveMetrics=TRUE)
 if (any(nzvPredictors$nzv)) {
@@ -131,11 +131,10 @@ if (any(nzvPredictors$nzv)) {
 
 ## Train the model
 
-Now that the data has been preprocessed we can train the model.  We are using the Random Forest model since the
-values of classe are discrete, and as pointed out in the lectures, the Random Forest accuracy is high. We further try to improve the accuracy by use a 10 fold cross validation.  
+Now that the data has been preprocessed we can train the model.  We are using the Random Forest model since the values of classe are discrete, and as pointed out in the lectures, the Random Forest accuracy is high. We further try to improve the accuracy by use a 10 fold cross validation.  
 
-Note: Also pointed out in the lectures was that the Random Forest can be a bit slow.  To combat this we use parallel clustering to take advantage of multiple processing cores available on many CPUs.  Even with this, it takes 24 minutes on a i7-4970K system with 16 GB of memory to train the model.
-So there is also a facility to reuse the previously generated model.  This is useful while changing the report format.
+Note: Also pointed out in the lectures was that the Random Forest can be a bit slow.  To combat this we employ 2 tactics.  First, we use parallel clustering to take advantage of multiple processing cores available on many CPUs.  Even with this, it takes 5 minutes on a i7-4970K system with 16 GB of memory to train the model. Often we re-run the model generation not because the model has changed, but because the report content or format has changed.  Therefore we 
+have a second tactic that allow reusing the previously generated model.
 
 ```{r Train Model}
 
@@ -168,28 +167,17 @@ print (trainingModel)
 
 ### Tree accuracy
 
-We see that with k-fold cross-validation we achieve an accuracy of 0.99 or 99%.  This accuracy was achived when the number of variables per level (mtry) in the model was 27.
+We see that with k-fold (k=10) cross-validation we achieve an accuracy of 0.99 or 99%.  This accuracy was achieved when the number of variables per level (mtry) in the model was 27.
 
 
-## Evaluate the model on training set
+## OOB errors
+As a check lets take a look at the model's OOB estimate of error for our classe values shown in Figure 1.  We see 
+that the OOB (out of sample) error rate is low, 0.84%, increasing our confidence in the model.
+ 
 
-Let's take a look at how the model compares to the training set.  Obviuosly we would expect high agreement
-since this the data we trained the model against. If we do not have a high agreement the Random Forest may
-not work with this data or we need more pre-processing.
-```{r evaluate mode vs training set }
-hatTrain <- predict(trainingModel, trainCentScale)
-cmTrain <- confusionMatrix(hatTrain, trainCentScale[, classe])
-cmTrain
-```
-As the data shows we do indeed have high agreement between training data and the produced model.  Also note that "Reference" shows the classe
-of the data has the following prevalence relation for number of each classe A > B > E > C > D.  However the counts are is relatively balanced so use of a random forest model should work.
+## Evaluating the model on Validation set
 
-The need for a balanced distribution was pointed out in the answer to this question, http://stat.stackexchange.com/questions/30691/how-to-interpret-oob-and-confusion-matrix-for-random-forest.  The 3rd answer
-begins with " Your set is sharply unbalanced -- RF usually fails in this scenario (i.e. predicts well only the bigger class)"
-
-## Evaluate the model on Validation set
-
-Let's validate the model against our 40% of the training data we used to create a validation set.
+We validate the model against our 40% of the training data we used to create a validation set.
 We should see good accuracy, and and similar prevelence and balance amoung the classe entries.
 
 ```{r evaluate model vs validation set }
@@ -197,25 +185,26 @@ hatValidation <- predict(trainingModel, validationCentScale)
 cmValidation <- confusionMatrix(hatValidation, validationCentScale[, classe])
 cmValidation
 ```
-We get an accuracy of `r cmValidation$overall['Accuracy']`.  Also, we see the the prevalence relationship
-is still classe  A > B > E > C >D and the counts are relatively balanced, so this accuracy is likely real.
-Checking the Sensitivity (True Postive Rate) and Specificity (True Negative Rate) for the classes we see these 
-values are high so this helps confirm that the model does indeed correctly predict classe. 
+We get an accuracy of `r cmValidation$overall['Accuracy']`.  Also, we see the classe counts are relatively balanced, so this accuracy is likely real.
 
-## OOB errors
-As a cross check lets take a look at the model's OOB estimate of error for our classe values shown in Figure 1.  We see 
-that the OOB error rate is low, 0.84%, increasing our confidence in the model.
+The need for a balanced distribution was pointed out in the answer to this question, http://stat.stackexchange.com/questions/30691/how-to-interpret-oob-and-confusion-matrix-for-random-forest.  The 3rd answer
+begins with " Your set is sharply unbalanced -- RF usually fails in this scenario (i.e. predicts well only the bigger class)"
 
-## Predict with test data 
+Checking the Sensitivity (True Postive Rate) and Specificity (True Negative Rate) for the classes we see these values are high so this helps confirm that the model does indeed correctly predict classe. 
 
-We can now run the prediction with our model to obtain the answers need for the evaluation.
+
+## Predict classe of the Test set 
+
+We can now run the prediction with our model to obtain the classe values which will
+be evaluated by the Coursera grader.
+
 ```{r Predict with test data}
 testPred <- predict(preProc, origTest[, predictors, with=FALSE])
 testHat <- predict(trainingModel, testPred)
 ```
 
 ### Create answer files
-Using the provided function, we create the answer files which were submitted to Coursera.
+Using the function provided in the instructions, we create the answer files to be submitted to Coursera.
 
 ```{r write answer files}
 # Write submission answer files to send to Coursera using the provided function
@@ -230,9 +219,9 @@ pml_write_files = function(x){
 pml_write_files(testHat)
 ```
 
-### Answer file correctness (ie. Does it work?)
+## Answer file correctness (ie. Does it work?)
 
-The created answer files were accepted by the Coursera grader. 20 of 20 answers were correct!
+The created answer files were accepted by the Coursera grader. 20 of 20 answers were graded as correct!
 
 
 

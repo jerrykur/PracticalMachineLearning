@@ -70,7 +70,9 @@ img {
 
 <div id="abstract" class="section level1">
 <h1>Abstract</h1>
-<p>In this projects we the performance of 5 accelerometers and resultant class as data to create a model for predicting class. We used a Random Forest to calculate the model based on a 60% subset of the training data. This model was validate by using the remaining 40% of the training data as a Validation set. The model showed good accuracy, &gt;98%. When the model was used to predict class for the 20 values in the test set it was correct 100% of the time.</p>
+<p>In this project we create model which analyzes the performance of 5 accelerometers attached to test subjects performing exercises. Using the performance data the model classifies how well the exercises were performed into 5 “classe” factor values.</p>
+<p>To create the model we clean and filter the data to remove non relavant and partial data. A Random Forest, with K-folder (n=10) cross validation, is used to calculate the model based on a 60% subset of the training data. The produced model shows low OOB error rate of 0.98%. This model is further validate by using the remaining 40% of the training data as a Validation set. Against this Validation set the model showed good accuracy, &gt;98%, in predicting the correct classe values.</p>
+<p>Finally, the model is used to predict classe for the 20 items in the Test set. For the test set the model correctly predicted the classe value 100% of the time.</p>
 </div>
 <div id="background" class="section level1">
 <h1>Background</h1>
@@ -118,7 +120,7 @@ predictors &lt;- names(isAnyMissing)[isPredictor]</code></pre>
 <p>We subset the columns in the data sets to only include the prediction columns from above and the “classe” column.<br />Also, since classe has a discrete set of values we make the classe column a factor.</p>
 <pre class="r"><code># use the classe + the predictor columns as a filter
 colsToUse &lt;- c(&quot;classe&quot;, predictors)
-# Create filtered training set containing only the columns from the training file we chose above
+# Create filtered training subset containing only the columns from the training file we chose above
 filteredTraining &lt;- origTraining[, colsToUse, with=FALSE]
 # make classe a factor
 filteredTraining &lt;- filteredTraining[, classe := factor(filteredTraining[, classe])]</code></pre>
@@ -127,8 +129,8 @@ filteredTraining &lt;- filteredTraining[, classe := factor(filteredTraining[, cl
 <div id="split-filtered-training-into-trainingvalidation-datasets" class="section level2">
 <h2>Split Filtered Training into Training/Validation datasets</h2>
 <p>From the entire filtered training data we split the data into a training and a validation datasets We will use the training dataset to train our model and the Validation dataset to validate the model.</p>
-<p>60/40 ratio was determined by a reading on stackexchange.com and other site.</p>
-<pre class="r"><code># start date as seed.  Note the seed can cause small shift submitted answers
+<p>60/40 ratio was determined by a reading posting on stackexchange.com and other site.</p>
+<pre class="r"><code># set seed.  Note: the seed can cause small shifts in submitted answers
 set.seed(160615)   
 # partition the test data in to test and validation sets
 inTrain &lt;- createDataPartition(filteredTraining$classe, p=0.60, list=FALSE)
@@ -138,7 +140,7 @@ Validation &lt;- filteredTraining[-inTrain,]</code></pre>
 <div id="pre-process-training-dataset" class="section level2">
 <h2>Pre-process training dataset</h2>
 <pre class="r"><code>trainPred &lt;- Train[, predictors, with=FALSE]
-# center and scale the data
+# center and scale the data.  I am not sure if this required for Random Forest
 preProc &lt;- preProcess(trainPred, method=c(&quot;center&quot;, &quot;scale&quot;))
 tempCentScale &lt;- predict(preProc, trainPred)
 trainCentScale &lt;- data.table(data.frame(classe = Train[, classe], tempCentScale))</code></pre>
@@ -153,7 +155,7 @@ validationCentScale &lt;- data.table(data.frame(classe = Validation[, classe], t
 </div>
 <div id="check-for-constant-predictors" class="section level2">
 <h2>Check for constant predictors</h2>
-<p>Check to see if there are predictors with near 0 variance (constant) indicating they are un-informative. We remove them since they would likely break the tree prediction or at least skew the model. A quick review of the data shows that we should not have any of these. If we do I want to know about it and see if I made an error in my understanding of the data. See <a href="http://www.r-bloggers.com/near-zero-variance-predictors-should-we-remove-them/" class="uri">http://www.r-bloggers.com/near-zero-variance-predictors-should-we-remove-them/</a></p>
+<p>Check to see if there are predictors with near 0 variance (constant) indicating they are un-informative. We remove them since they would likely break the tree prediction or at least skew the model. A quick review of the data shows that we should not have any of these. If we do I want to know about it and see if I made an error in my understanding of the data. See <a href="http://www.r-bloggers.com/near-zero-variance-predictors-should-we-remove-them/" class="uri">http://www.r-bloggers.com/near-zero-variance-predictors-should-we-remove-them/</a> for more information.</p>
 <pre class="r"><code>nzvPredictors &lt;- nearZeroVar(trainCentScale, saveMetrics=TRUE)
 if (any(nzvPredictors$nzv)) {
   message(paste(&quot;ERROR - near zero values in Predictors.  Check these &quot;, nzvPredictors$nzv)) 
@@ -165,7 +167,7 @@ if (any(nzvPredictors$nzv)) {
 <div id="train-the-model" class="section level2">
 <h2>Train the model</h2>
 <p>Now that the data has been preprocessed we can train the model. We are using the Random Forest model since the values of classe are discrete, and as pointed out in the lectures, the Random Forest accuracy is high. We further try to improve the accuracy by use a 10 fold cross validation.</p>
-<p>Note: Also pointed out in the lectures was that the Random Forest can be a bit slow. To combat this we use parallel clustering to take advantage of multiple processing cores available on many CPUs. Even with this, it takes 24 minutes on a i7-4970K system with 16 GB of memory to train the model. So there is also a facility to reuse the previously generated model. This is useful while changing the report format.</p>
+<p>Note: Also pointed out in the lectures was that the Random Forest can be a bit slow. To combat this we employ 2 tactics. First, we use parallel clustering to take advantage of multiple processing cores available on many CPUs. Even with this, it takes 5 minutes on a i7-4970K system with 16 GB of memory to train the model. Often we re-run the model generation not because the model has changed, but because the report content or format has changed. Therefore we have a second tactic that allow reusing the previously generated model.</p>
 <pre class="r"><code>trainingFile &lt;- &quot;trainingModel.Rdata&quot;
 if ( !USE_PREVIOUS_MODEL ) {
   # If here, generate a new model
@@ -203,60 +205,24 @@ print (trainingModel)</code></pre>
 ## Resampling results across tuning parameters:
 ## 
 ##   mtry  Accuracy   Kappa      Accuracy SD  Kappa SD   
-##    2    0.9900650  0.9874315  0.001918650  0.002426568
-##   27    0.9903195  0.9877539  0.002440231  0.003086851
-##   52    0.9828462  0.9782975  0.003416922  0.004324925
+##    2    0.9898104  0.9871091  0.002527071  0.003198390
+##   27    0.9908288  0.9883983  0.002881494  0.003644687
+##   52    0.9828455  0.9782970  0.003252353  0.004121005
 ## 
 ## Accuracy was used to select the optimal model using  the largest value.
 ## The final value used for the model was mtry = 27.</code></pre>
 <div id="tree-accuracy" class="section level3">
 <h3>Tree accuracy</h3>
-<p>We see that with k-fold cross-validation we achieve an accuracy of 0.99 or 99%. This accuracy was achived when the number of variables per level (mtry) in the model was 27.</p>
+<p>We see that with k-fold (k=10) cross-validation we achieve an accuracy of 0.99 or 99%. This accuracy was achieved when the number of variables per level (mtry) in the model was 27.</p>
 </div>
 </div>
-<div id="evaluate-the-model-on-training-set" class="section level2">
-<h2>Evaluate the model on training set</h2>
-<p>Let’s take a look at how the model compares to the training set. Obviuosly we would expect high agreement since this the data we trained the model against. If we do not have a high agreement the Random Forest may not work with this data or we need more pre-processing.</p>
-<pre class="r"><code>hatTrain &lt;- predict(trainingModel, trainCentScale)
-cmTrain &lt;- confusionMatrix(hatTrain, trainCentScale[, classe])
-cmTrain</code></pre>
-<pre><code>## Confusion Matrix and Statistics
-## 
-##           Reference
-## Prediction    A    B    C    D    E
-##          A 3348    0    0    0    0
-##          B    0 2279    0    0    0
-##          C    0    0 2054    0    0
-##          D    0    0    0 1930    0
-##          E    0    0    0    0 2165
-## 
-## Overall Statistics
-##                                      
-##                Accuracy : 1          
-##                  95% CI : (0.9997, 1)
-##     No Information Rate : 0.2843     
-##     P-Value [Acc &gt; NIR] : &lt; 2.2e-16  
-##                                      
-##                   Kappa : 1          
-##  Mcnemar's Test P-Value : NA         
-## 
-## Statistics by Class:
-## 
-##                      Class: A Class: B Class: C Class: D Class: E
-## Sensitivity            1.0000   1.0000   1.0000   1.0000   1.0000
-## Specificity            1.0000   1.0000   1.0000   1.0000   1.0000
-## Pos Pred Value         1.0000   1.0000   1.0000   1.0000   1.0000
-## Neg Pred Value         1.0000   1.0000   1.0000   1.0000   1.0000
-## Prevalence             0.2843   0.1935   0.1744   0.1639   0.1838
-## Detection Rate         0.2843   0.1935   0.1744   0.1639   0.1838
-## Detection Prevalence   0.2843   0.1935   0.1744   0.1639   0.1838
-## Balanced Accuracy      1.0000   1.0000   1.0000   1.0000   1.0000</code></pre>
-<p>As the data shows we do indeed have high agreement between training data and the produced model. Also note that “Reference” shows the classe of the data has the following prevalence relation for number of each classe A &gt; B &gt; E &gt; C &gt; D. However the counts are is relatively balanced so use of a random forest model should work.</p>
-<p>The need for a balanced distribution was pointed out in the answer to this question, <a href="http://stat.stackexchange.com/questions/30691/how-to-interpret-oob-and-confusion-matrix-for-random-forest" class="uri">http://stat.stackexchange.com/questions/30691/how-to-interpret-oob-and-confusion-matrix-for-random-forest</a>. The 3rd answer begins with &quot; Your set is sharply unbalanced – RF usually fails in this scenario (i.e. predicts well only the bigger class)&quot;</p>
+<div id="oob-errors" class="section level2">
+<h2>OOB errors</h2>
+<p>As a check lets take a look at the model’s OOB estimate of error for our classe values shown in Figure 1. We see that the OOB (out of sample) error rate is low, 0.84%, increasing our confidence in the model.</p>
 </div>
-<div id="evaluate-the-model-on-validation-set" class="section level2">
-<h2>Evaluate the model on Validation set</h2>
-<p>Let’s validate the model against our 40% of the training data we used to create a validation set. We should see good accuracy, and and similar prevelence and balance amoung the classe entries.</p>
+<div id="evaluating-the-model-on-validation-set" class="section level2">
+<h2>Evaluating the model on Validation set</h2>
+<p>We validate the model against our 40% of the training data we used to create a validation set. We should see good accuracy, and and similar prevelence and balance amoung the classe entries.</p>
 <pre class="r"><code>hatValidation &lt;- predict(trainingModel, validationCentScale)
 cmValidation &lt;- confusionMatrix(hatValidation, validationCentScale[, classe])
 cmValidation</code></pre>
@@ -291,20 +257,18 @@ cmValidation</code></pre>
 ## Detection Rate         0.2838   0.1875   0.1698   0.1597   0.1821
 ## Detection Prevalence   0.2865   0.1903   0.1770   0.1631   0.1830
 ## Balanced Accuracy      0.9970   0.9828   0.9824   0.9851   0.9949</code></pre>
-<p>We get an accuracy of 0.9829212. Also, we see the the prevalence relationship is still classe A &gt; B &gt; E &gt; C &gt;D and the counts are relatively balanced, so this accuracy is likely real. Checking the Sensitivity (True Postive Rate) and Specificity (True Negative Rate) for the classes we see these values are high so this helps confirm that the model does indeed correctly predict classe.</p>
+<p>We get an accuracy of 0.9829212. Also, we see the classe counts are relatively balanced, so this accuracy is likely real.</p>
+<p>The need for a balanced distribution was pointed out in the answer to this question, <a href="http://stat.stackexchange.com/questions/30691/how-to-interpret-oob-and-confusion-matrix-for-random-forest" class="uri">http://stat.stackexchange.com/questions/30691/how-to-interpret-oob-and-confusion-matrix-for-random-forest</a>. The 3rd answer begins with &quot; Your set is sharply unbalanced – RF usually fails in this scenario (i.e. predicts well only the bigger class)&quot;</p>
+<p>Checking the Sensitivity (True Postive Rate) and Specificity (True Negative Rate) for the classes we see these values are high so this helps confirm that the model does indeed correctly predict classe.</p>
 </div>
-<div id="oob-errors" class="section level2">
-<h2>OOB errors</h2>
-<p>As a cross check lets take a look at the model’s OOB estimate of error for our classe values shown in Figure 1. We see that the OOB error rate is low, 0.84%, increasing our confidence in the model.</p>
-</div>
-<div id="predict-with-test-data" class="section level2">
-<h2>Predict with test data</h2>
-<p>We can now run the prediction with our model to obtain the answers need for the evaluation.</p>
+<div id="predict-classe-of-the-test-set" class="section level2">
+<h2>Predict classe of the Test set</h2>
+<p>We can now run the prediction with our model to obtain the classe values which will be evaluated by the Coursera grader.</p>
 <pre class="r"><code>testPred &lt;- predict(preProc, origTest[, predictors, with=FALSE])
 testHat &lt;- predict(trainingModel, testPred)</code></pre>
 <div id="create-answer-files" class="section level3">
 <h3>Create answer files</h3>
-<p>Using the provided function, we create the answer files which were submitted to Coursera.</p>
+<p>Using the function provided in the instructions, we create the answer files to be submitted to Coursera.</p>
 <pre class="r"><code># Write submission answer files to send to Coursera using the provided function
 pml_write_files = function(x){
   n = length(x)
@@ -316,10 +280,10 @@ pml_write_files = function(x){
 }
 pml_write_files(testHat)</code></pre>
 </div>
-<div id="answer-file-correctness-ie.-does-it-work" class="section level3">
-<h3>Answer file correctness (ie. Does it work?)</h3>
-<p>The created answer files were accepted by the Coursera grader. 20 of 20 answers were correct!</p>
 </div>
+<div id="answer-file-correctness-ie.-does-it-work" class="section level2">
+<h2>Answer file correctness (ie. Does it work?)</h2>
+<p>The created answer files were accepted by the Coursera grader. 20 of 20 answers were graded as correct!</p>
 </div>
 </div>
 <div id="appendix" class="section level1">
